@@ -1667,6 +1667,34 @@ class BridgeTests(unittest.TestCase):
         self.assertIn('179.178.155.140:36489', line)
         self.assertNotIn('2C3225C4805331025E211F4B6E5BF45C333FDD2C', line)
 
+    def test_Bridge_getBridgeLine_probing_resistance(self):
+        """A bridge that runs an active probing-resistant PT should never
+        return a PT that is *not* active probing-resistant.
+        """
+
+        self.bridge.updateFromNetworkStatus(self.networkstatus)
+        self.bridge.updateFromServerDescriptor(self.serverdescriptor)
+        self.bridge.updateFromExtraInfoDescriptor(self.extrainfo)
+
+        request = BridgeRequestBase()
+        request.isValid(True)
+        request.withPluggableTransportType('obfs4')
+        line = self.bridge.getBridgeLine(request)
+        self.assertIsNotNone(line)
+        self.assertTrue(line.startswith('obfs4'))
+
+        request = BridgeRequestBase()
+        request.isValid(True)
+        request.withPluggableTransportType('scramblesuit')
+        line = self.bridge.getBridgeLine(request)
+        self.assertIsNotNone(line)
+        self.assertTrue(line.startswith('scramblesuit'))
+
+        request = BridgeRequestBase()
+        request.isValid(True)
+        line = self.bridge.getBridgeLine(request)
+        self.assertIsNone(self.bridge.getBridgeLine(request))
+
     def test_Bridge_getNetworkstatusLastPublished(self):
         """Calling getNetworkstatusLastPublished() should tell us the last
         published time of the Bridge's server-descriptor.

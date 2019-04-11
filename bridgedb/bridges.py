@@ -529,6 +529,19 @@ class PluggableTransport(BridgeAddressBase):
             except (AttributeError, TypeError):
                 raise TypeError("methodname must be a str or unicode")
 
+    def isProbingResistant(self):
+        """Reveal if this pluggable transport is active probing-resistant.
+
+        :rtype: bool
+        :returns: ``True`` if this pluggable transport is resistant to active
+            probing attacks, ``False`` otherwise.
+        """
+
+        # FIXME: This is ugly.  Should we extend SUPPORTED_TRANSPORTS in
+        # bridgedb.conf?
+        return self.methodname in ["obfs4", "scramblesuit"]
+
+
     def getTransportLine(self, includeFingerprint=True, bridgePrefix=False):
         """Get a Bridge Line for this :class:`PluggableTransport`.
 
@@ -1031,6 +1044,13 @@ class Bridge(BridgeBackwardsCompatibility):
 
         return prefix + fingerprint + separator + nickname
 
+    def _hasProbingResistantPT(self):
+        # We want to know if this bridge runs any active probing-resistant PTs
+        # because if so, we should *only* hand out its active probing-resistant
+        # PTs.  Otherwise, a non-resistant PT would get this bridge scanned and
+        # blocked: <https://bugs.torproject.org/28655>
+        return any([t.isProbingResistant() for t in self.transports])
+
     def _checkServerDescriptor(self, descriptor):
         # If we're parsing the server-descriptor, require a networkstatus
         # document:
@@ -1083,6 +1103,9 @@ class Bridge(BridgeBackwardsCompatibility):
         address, port, version = addrport
 
         if not address or not port:
+            return
+
+        if self._hasProbingResistantPT():
             return
 
         bridgeLine = []
@@ -1158,6 +1181,9 @@ class Bridge(BridgeBackwardsCompatibility):
         transports = filter(lambda pt: pt.methodname == desired, self.transports)
         # Filter again for whichever of IPv4 or IPv6 was requested:
         transports = filter(lambda pt: pt.address.version == ipVersion, transports)
+
+        if self._hasProbingResistantPT():
+            transports = filter(lambda pt: pt.isProbingResistant() == True, transports)
 
         if not transports:
             raise PluggableTransportUnavailable(
